@@ -1,6 +1,9 @@
+import { findCategoryPath } from './keywordConfigParser';
+
 interface ExtractionOptions {
 	maxKeywords?: number;
 	useHierarchicalTags?: boolean;
+	config?: any;
 }
 
 interface ExtractionResult {
@@ -103,16 +106,29 @@ function extractKeywordsFromContent(content: string, maxKeywords: number = 10): 
 	return finalKeywords.slice(0, maxKeywords);
 }
 
-function generateHierarchicalTags(keywords: string[]): string[] {
+function generateHierarchicalTags(keywords: string[], config?: any): string[] {
 	const tags: string[] = [];
 	
 	for (const keyword of keywords) {
-		const categories = categorizeKeyword(keyword);
+		let categoryPath: string[] | null = null;
 		
-		if (categories.length > 0) {
-			// 使用第一个匹配的类别作为主分类
-			const mainCategory = categories[0];
-			tags.push(`AI/${mainCategory}/${capitalizeFirstLetter(keyword)}`);
+		// 如果提供了配置，使用配置中的分类
+		if (config) {
+			categoryPath = findCategoryPath(keyword, config);
+		}
+		
+		// 如果配置中没有找到，使用内置的分类
+		if (!categoryPath) {
+			const categories = categorizeKeyword(keyword);
+			if (categories.length > 0) {
+				categoryPath = ['AI', categories[0]];
+			}
+		}
+		
+		if (categoryPath) {
+			// 将分类路径转换为标签格式
+			const pathParts = categoryPath.map(part => capitalizeFirstLetter(part));
+			tags.push(pathParts.join('/'));
 		} else {
 			// 如果没有匹配的类别，使用通用分类
 			tags.push(`General/${capitalizeFirstLetter(keyword)}`);
@@ -133,12 +149,13 @@ function capitalizeFirstLetter(str: string): string {
 export function extractKeywordsAndTags(content: string, options: ExtractionOptions = {}): ExtractionResult {
 	const {
 		maxKeywords = 10,
-		useHierarchicalTags = true
+		useHierarchicalTags = true,
+		config
 	} = options;
 	
 	const keywords = extractKeywordsFromContent(content, maxKeywords);
 	const tags = useHierarchicalTags 
-		? generateHierarchicalTags(keywords)
+		? generateHierarchicalTags(keywords, config)
 		: generateFlatTags(keywords);
 	
 	return {

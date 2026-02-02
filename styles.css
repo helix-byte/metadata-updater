@@ -6,3 +6,36 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+/* 配置文件管理样式 */
+.custom-config-list {
+	margin-top: 1rem;
+}
+
+.empty-config-message {
+	color: var(--text-muted);
+	font-style: italic;
+	padding: 0.5rem;
+}
+
+.config-preview {
+	background-color: var(--background-secondary);
+	padding: 0.5rem;
+	border-radius: 4px;
+	font-family: monospace;
+	font-size: 0.85rem;
+	color: var(--text-muted);
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	max-height: 100px;
+	overflow-y: auto;
+	margin-top: 0.5rem;
+}
+
+/* 配置编辑模态框样式 */
+.config-modal textarea {
+	font-family: 'Courier New', Courier, monospace;
+	font-size: 14px;
+	line-height: 1.5;
+	resize: vertical;
+}
