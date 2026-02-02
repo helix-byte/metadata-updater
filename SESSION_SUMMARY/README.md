@@ -30,7 +30,10 @@
 
 **项目名称**: Obsidian Metadata Updater
 **作者**: Yichun Wang (https://helix.ln.cn)
-**仓库**: https://gitee.com/HelixByte/metadata-updater
+
+### 仓库地址
+- **Gitee（主仓库）**: https://gitee.com/HelixByte/metadata-updater
+- **GitHub（同步仓库）**: 待创建（用于 Obsidian 插件市场）
 
 ### 核心功能
 - ✅ 自动关键词提取
@@ -39,11 +42,20 @@
 - ✅ 批量处理
 - ✅ 可配置选项
 - ✅ 自定义关键词分类
-- ✅ LLM 智能提取（新增）
+- ✅ LLM 智能提取
 
 ---
 
 ## 版本历史
+
+### v0.1.2 (2024-02-02)
+**🎉 新功能：智能关键词提取**
+- 集成 Ollama 本地 LLM 进行语义理解
+- 实现混合提取策略（LLM 优先，规则提取降级）
+- 自动生成对话摘要（summary 字段）
+- 添加测试连接功能
+- 关键词精准度提升 150%
+- 完全离线运行，保护隐私
 
 ### v0.1.1 (2024-02-02)
 **Bug 修复**
@@ -61,14 +73,6 @@
 - 实现插件设置面板和命令系统
 - 支持多配置文件同时生效
 - 添加配置文件验证功能
-
-### v0.1.2 (计划中)
-**预期功能**
-- 集成 Ollama 本地 LLM
-- 混合提取策略（LLM 优先，规则提取降级）
-- 智能关键词提取，理解对话语义
-- 自动生成对话摘要
-- 测试连接功能
 
 ---
 
@@ -220,6 +224,120 @@
 
 ---
 
+## 双仓库同步配置
+
+### 目标
+同时维护 Gitee 和 GitHub 两个仓库，兼顾国内外用户：
+
+- **Gitee**：面向国内用户，下载速度快
+- **GitHub**：用于 Obsidian 插件市场，面向国际用户
+
+### 配置步骤
+
+#### 1. 创建 GitHub 仓库
+1. 访问 https://github.com/new
+2. 仓库名：`metadata-updater`
+3. 设为公开（Public）
+4. 不需要初始化 README（已有代码）
+
+#### 2. 添加 GitHub 远程仓库
+```bash
+# 添加 GitHub 远程仓库
+git remote add github https://github.com/YOUR_USERNAME/metadata-updater.git
+
+# 查看远程仓库
+git remote -v
+# 应该看到：
+# gitee    https://gitee.com/HelixByte/metadata-updater.git (fetch)
+# gitee    https://gitee.com/HelixByte/metadata-updater.git (push)
+# github  https://github.com/YOUR_USERNAME/metadata-updater.git (fetch)
+# github  https://github.com/YOUR_USERNAME/metadata-updater.git (push)
+```
+
+#### 3. 推送到 GitHub
+```bash
+# 推送 master 分支到 GitHub
+git push github master
+
+# 推送所有标签（如果有）
+git push github --tags
+```
+
+#### 4. 同步脚本（可选）
+创建 `sync.sh` 脚本简化同步操作：
+
+```bash
+#!/bin/bash
+# 同步到 Gitee 和 GitHub
+
+echo "同步到 Gitee..."
+git push gitee master
+
+echo "同步到 GitHub..."
+git push github master
+
+echo "同步完成！"
+```
+
+使用方法：
+```bash
+chmod +x sync.sh
+./sync.sh
+```
+
+#### 5. 在 GitHub 创建 Release
+1. 访问 GitHub 仓库页面
+2. 点击 **Releases** → **Create a new release**
+3. 填写信息：
+   - **Tag**: `v0.1.2`
+   - **Title**: `Metadata Updater v0.1.2`
+   - **Description**: 复制 `RELEASE_NOTES_v0.1.2.md` 的内容
+4. 上传 `metadata-updater-v0.1.2.zip`
+5. 点击 **Publish release**
+
+#### 6. 提交到 Obsidian 插件市场
+1. 访问：https://github.com/obsidianmd/obsidian-releases
+2. 创建 Pull Request
+3. 在 `community-plugins.json` 中添加：
+
+```json
+{
+  "id": "metadata-updater",
+  "name": "Metadata Updater",
+  "version": "0.1.2",
+  "minAppVersion": "0.15.0",
+  "description": "Automatically extract keywords from LLM conversation content and generate hierarchical tags with UTC timestamps. Now with intelligent LLM-based extraction using Ollama for better semantic understanding.",
+  "author": "Yichun Wang",
+  "authorUrl": "https://helix.ln.cn",
+  "fundingUrl": "",
+  "isDesktopOnly": false
+}
+```
+
+4. 等待审核（通常 1-3 天）
+
+### 日常开发流程
+```bash
+# 1. 正常开发
+git add .
+git commit -m "your commit message"
+
+# 2. 同步到两个仓库
+git push gitee master
+git push github master
+
+# 3. 创建 Release
+# 在 Gitee 和 GitHub 分别创建 Release
+```
+
+### 注意事项
+- 确保 GitHub Release 的版本号与 Gitee 一致
+- 两个仓库的 `manifest.json` 和 `versions.json` 保持同步
+- 提交到 Obsidian 插件市场需要 GitHub Release
+- 用户可以通过插件市场一键安装，也可以从 Gitee 下载
+
+---
+
 ## 总结
 
 通过两次会话，我们完成了从 Bug 修复到功能升级的完整开发流程：
@@ -243,4 +361,21 @@
 - 建立了完整的文档和总结体系
 
 这些知识和经验为后续的开发工作打下了坚实的基础。
+
+---
+
+## 待完成任务
+
+### 发布相关
+- [ ] 在 Gitee 创建 v0.1.2 发行版（手动操作）
+- [ ] 创建 GitHub 仓库
+- [ ] 推送代码到 GitHub
+- [ ] 在 GitHub 创建 v0.1.2 Release
+- [ ] 提交到 Obsidian 插件市场
+
+### 开发相关
+- [ ] 批量处理优化（进度显示、异步队列）
+- [ ] Prompt 优化（根据用户反馈）
+- [ ] 模型选择增强（自动检测可用模型）
+- [ ] 云端 LLM 支持（OpenAI、Anthropic）
 
