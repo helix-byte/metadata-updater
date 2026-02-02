@@ -1,6 +1,7 @@
 import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, TextAreaComponent, Modal, ButtonComponent } from 'obsidian';
 import { extractKeywordsAndTags, updateMetadata } from './metadataExtractor';
 import { parseKeywordConfig, mergeConfigs, validateConfig, generateExampleConfig } from './keywordConfigParser';
+import { HybridExtractorManager, LLMConfig } from './llmExtractor';
 
 interface CustomConfig {
 	name: string;
@@ -13,6 +14,7 @@ interface MetadataUpdaterSettings {
 	maxKeywords: number;
 	useHierarchicalTags: boolean;
 	customConfigs: CustomConfig[];
+	llmConfig: LLMConfig;
 }
 
 const DEFAULT_SETTINGS: MetadataUpdaterSettings = {
@@ -20,18 +22,31 @@ const DEFAULT_SETTINGS: MetadataUpdaterSettings = {
 	timestampEnabled: true,
 	maxKeywords: 10,
 	useHierarchicalTags: true,
-	customConfigs: []
+	customConfigs: [],
+	llmConfig: {
+		enabled: true,
+		mode: 'ollama',
+		ollamaUrl: 'http://localhost:11434',
+		ollamaModel: 'gemma3:1b',
+		maxKeywords: 8,
+		useHierarchicalTags: true,
+		fallbackToRule: true
+	}
 }
 
 export default class MetadataUpdaterPlugin extends Plugin {
 	settings: MetadataUpdaterSettings;
 	defaultConfigContent: string = '';
+	extractorManager: HybridExtractorManager | null = null;
 
 	async onload() {
 		// 加载默认配置文件
 		await this.loadDefaultConfig();
 
 		await this.loadSettings();
+
+		// 初始化提取器管理器
+		await this.initializeExtractor();
 
 		// 添加命令：更新当前笔记的元数据
 		this.addCommand({
@@ -64,6 +79,20 @@ export default class MetadataUpdaterPlugin extends Plugin {
 
 		// 添加设置面板
 		this.addSettingTab(new MetadataUpdaterSettingTab(this.app, this));
+	}
+
+	async initializeExtractor() {
+		const mergedConfig = await this.loadAllConfigs();
+		this.extractorManager = new HybridExtractorManager(this.settings.llmConfig, mergedConfig);
+		await this.extractorManager.initialize();
+
+		const available = this.extractorManager.getAvailableExtractors();
+		if (available.length > 0) {
+			console.log('Available extractors:', available);
+			new Notice(`使用 ${available[0]} 进行关键词提取`);
+		} else {
+			console.log('No LLM extractor available, using rule-based');
+		}
 	}
 
 	async loadDefaultConfig() {
@@ -123,20 +152,53 @@ export default class MetadataUpdaterPlugin extends Plugin {
 			const content = await this.app.vault.read(file);
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter || {};
 
-			// 加载所有配置
-			const mergedConfig = await this.loadAllConfigs();
+			let keywords: string[] = [];
+			let tags: string[] = [];
+			let summary: string | undefined;
 
-			const { keywords, tags } = extractKeywordsAndTags(content, {
-				maxKeywords: this.settings.maxKeywords,
-				useHierarchicalTags: this.settings.useHierarchicalTags,
-				config: mergedConfig
-			});
+			// 使用混合提取器
+			if (this.extractorManager && this.settings.llmConfig.enabled) {
+				try {
+					const result = await this.extractorManager.extract(content, {
+						maxKeywords: this.settings.maxKeywords,
+						useHierarchicalTags: this.settings.useHierarchicalTags
+					}, this.settings.llmConfig.fallbackToRule);
+
+					keywords = result.keywords;
+					tags = result.tags;
+					summary = result.summary;
+				} catch (error) {
+					console.error('Extraction failed:', error);
+					// 降级到规则提取
+					const mergedConfig = await this.loadAllConfigs();
+					const ruleResult = extractKeywordsAndTags(content, {
+						maxKeywords: this.settings.maxKeywords,
+						useHierarchicalTags: this.settings.useHierarchicalTags,
+						config: mergedConfig
+					});
+					keywords = ruleResult.keywords;
+					tags = ruleResult.tags;
+				}
+			} else {
+				// 使用规则提取
+				const mergedConfig = await this.loadAllConfigs();
+				const ruleResult = extractKeywordsAndTags(content, {
+					maxKeywords: this.settings.maxKeywords,
+					useHierarchicalTags: this.settings.useHierarchicalTags,
+					config: mergedConfig
+				});
+				keywords = ruleResult.keywords;
+				tags = ruleResult.tags;
+			}
 
 			const metadata: Record<string, any> = {};
 
 			if (this.settings.keywordExtractionEnabled) {
 				metadata.keywords = keywords;
 				metadata.tags = tags;
+				if (summary) {
+					metadata.summary = summary;
+				}
 			}
 
 			if (this.settings.timestampEnabled) {
@@ -225,6 +287,81 @@ class MetadataUpdaterSettingTab extends PluginSettingTab {
 				.onChange(async (value) => {
 					this.plugin.settings.useHierarchicalTags = value;
 					await this.plugin.saveSettings();
+				}));
+
+		// LLM 配置部分
+		containerEl.createEl('h2', { text: 'LLM 关键词提取' });
+
+		const llmDesc = containerEl.createDiv({ cls: 'setting-item-description' });
+		llmDesc.innerHTML = `
+			使用本地或云端 LLM 进行智能关键词提取，能够更准确地理解对话内容的核心话题。<br>
+			支持 Ollama 本地模型，完全离线运行，保护隐私。
+		`;
+
+		new Setting(containerEl)
+			.setName('启用 LLM 提取')
+			.setDesc('使用 LLM 进行关键词提取（优先于规则提取）')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.llmConfig.enabled)
+				.onChange(async (value) => {
+					this.plugin.settings.llmConfig.enabled = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Ollama 地址')
+			.setDesc('本地 Ollama 服务的地址（默认：http://localhost:11434）')
+			.addText(text => text
+				.setPlaceholder('http://localhost:11434')
+				.setValue(this.plugin.settings.llmConfig.ollamaUrl)
+				.onChange(async (value) => {
+					this.plugin.settings.llmConfig.ollamaUrl = value.trim() || 'http://localhost:11434';
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Ollama 模型')
+			.setDesc('使用的 Ollama 模型名称（如：gemma3:1b, qwen2.5:3b, llama3.2:3b）')
+			.addText(text => text
+				.setPlaceholder('gemma3:1b')
+				.setValue(this.plugin.settings.llmConfig.ollamaModel)
+				.onChange(async (value) => {
+					this.plugin.settings.llmConfig.ollamaModel = value.trim() || 'gemma3:1b';
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('降级到规则提取')
+			.setDesc('当 LLM 不可用时，自动降级到规则提取')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.llmConfig.fallbackToRule)
+				.onChange(async (value) => {
+					this.plugin.settings.llmConfig.fallbackToRule = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('测试连接')
+			.setDesc('测试 Ollama 服务是否可用')
+			.addButton(button => button
+				.setButtonText('测试')
+				.onClick(async () => {
+					button.setDisabled(true);
+					(button as any).buttonEl.setText('测试中...');
+
+					try {
+						const response = await fetch(`${this.plugin.settings.llmConfig.ollamaUrl}/api/tags`);
+						if (response.ok) {
+							new Notice('✅ Ollama 连接成功！');
+						} else {
+							new Notice('❌ Ollama 连接失败，请检查地址和端口');
+						}
+					} catch (error) {
+						new Notice('❌ 无法连接到 Ollama，请确保服务已启动');
+					}
+
+					button.setDisabled(false);
+					(button as any).buttonEl.setText('测试');
 				}));
 
 		// 配置文件管理部分

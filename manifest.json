@@ -1,7 +1,7 @@
 {
 	"id": "metadata-updater",
 	"name": "Metadata Updater",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"minAppVersion": "0.15.0",
 	"description": "Automatically extract keywords from LLM conversation content and generate hierarchical tags with UTC timestamps. Perfect for managing and organizing your AI conversation notes.",
 	"author": "Yichun Wang",
