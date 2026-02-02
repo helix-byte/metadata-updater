@@ -2,12 +2,17 @@ import { App, Plugin, PluginSettingTab, Setting, TFile, Notice, TextAreaComponen
 import { extractKeywordsAndTags, updateMetadata } from './metadataExtractor';
 import { parseKeywordConfig, mergeConfigs, validateConfig, generateExampleConfig } from './keywordConfigParser';
 
+interface CustomConfig {
+	name: string;
+	content: string;
+}
+
 interface MetadataUpdaterSettings {
 	keywordExtractionEnabled: boolean;
 	timestampEnabled: boolean;
 	maxKeywords: number;
 	useHierarchicalTags: boolean;
-	customConfigs: string[];
+	customConfigs: CustomConfig[];
 }
 
 const DEFAULT_SETTINGS: MetadataUpdaterSettings = {
@@ -90,9 +95,9 @@ export default class MetadataUpdaterPlugin extends Plugin {
 		}
 		
 		// 加载自定义配置
-		for (const configContent of this.settings.customConfigs) {
+		for (const customConfig of this.settings.customConfigs) {
 			try {
-				const config = parseKeywordConfig(configContent);
+				const config = parseKeywordConfig(customConfig.content);
 				configs.push(config);
 			} catch (error) {
 				console.error('Failed to parse custom config:', error);
@@ -268,13 +273,13 @@ class MetadataUpdaterSettingTab extends PluginSettingTab {
 			return;
 		}
 
-		this.plugin.settings.customConfigs.forEach((config, index) => {
+		this.plugin.settings.customConfigs.forEach((customConfig, index) => {
 			const configItem = new Setting(container)
-				.setName(`自定义配置 ${index + 1}`)
+				.setName(customConfig.name)
 				.addButton(button => button
 					.setButtonText('编辑')
 					.onClick(() => {
-						this.showConfigModal(`编辑自定义配置 ${index + 1}`, config, true, index);
+						this.showConfigModal(customConfig.name, customConfig.content, true, index);
 					}))
 				.addButton(button => button
 					.setButtonText('删除')
@@ -288,18 +293,18 @@ class MetadataUpdaterSettingTab extends PluginSettingTab {
 			// 显示配置预览（前几行）
 			const preview = container.createEl('div', {
 				cls: 'config-preview',
-				text: config.split('\n').slice(0, 3).join('\n') + (config.split('\n').length > 3 ? '\n...' : '')
+				text: customConfig.content.split('\n').slice(0, 3).join('\n') + (customConfig.content.split('\n').length > 3 ? '\n...' : '')
 			});
 			configItem.controlEl.appendChild(preview);
 		});
 	}
 
 	showConfigModal(title: string, content: string, isEditable: boolean, editIndex?: number) {
-		const modal = new ConfigModal(this.app, title, content, isEditable, async (newContent) => {
+		const modal = new ConfigModal(this.app, title, content, isEditable, async (name, newContent) => {
 			if (isEditable && editIndex !== undefined) {
-				this.plugin.settings.customConfigs[editIndex] = newContent;
+				this.plugin.settings.customConfigs[editIndex] = { name, content: newContent };
 			} else if (isEditable) {
-				this.plugin.settings.customConfigs.push(newContent);
+				this.plugin.settings.customConfigs.push({ name, content: newContent });
 			}
 			await this.plugin.saveSettings();
 			this.display();
@@ -310,13 +315,16 @@ class MetadataUpdaterSettingTab extends PluginSettingTab {
 
 class ConfigModal extends Modal {
 	content: string;
+	name: string;
 	isEditable: boolean;
-	onSave: (content: string) => void;
+	onSave: (name: string, content: string) => void;
 	textArea: TextAreaComponent;
+	nameInput: any;
 
-	constructor(app: App, title: string, content: string, isEditable: boolean, onSave: (content: string) => void) {
+	constructor(app: App, title: string, content: string, isEditable: boolean, onSave: (name: string, content: string) => void) {
 		super(app);
 		this.content = content;
+		this.name = title;
 		this.isEditable = isEditable;
 		this.onSave = onSave;
 		this.titleEl.setText(title);
@@ -325,6 +333,24 @@ class ConfigModal extends Modal {
 	onOpen() {
 		const {contentEl} = this;
 		contentEl.empty();
+
+		// 配置名称输入框
+		if (this.isEditable) {
+			const nameContainer = contentEl.createDiv({ cls: 'config-name-container' });
+			nameContainer.createEl('label', { 
+				text: '配置名称: ',
+				cls: 'setting-item-name'
+			});
+			
+			const nameInput = contentEl.createEl('input', {
+				type: 'text',
+				value: this.name,
+				cls: 'config-name-input'
+			});
+			nameInput.style.width = '100%';
+			nameInput.style.marginBottom = '16px';
+			this.nameInput = nameInput;
+		}
 
 		contentEl.createEl('p', { 
 			text: '使用类似 Python 的缩进语法。每级缩进使用 2 个空格。',
@@ -346,6 +372,7 @@ class ConfigModal extends Modal {
 			saveButton.setButtonText('保存');
 			saveButton.setCta();
 			saveButton.onClick(async () => {
+				const newName = this.nameInput.value.trim() || this.name;
 				const newContent = this.textArea.getValue();
 				const errors = validateConfig(newContent);
 				
@@ -354,7 +381,7 @@ class ConfigModal extends Modal {
 					return;
 				}
 				
-				this.onSave(newContent);
+				this.onSave(newName, newContent);
 				this.close();
 			});
 

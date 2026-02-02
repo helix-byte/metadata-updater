@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-metadata-updater",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Automatically extract keywords from LLM conversation content and generate hierarchical tags with UTC timestamps",
 	"main": "main.js",
 	"scripts": {
