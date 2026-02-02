@@ -24,3 +24,14 @@ data.json
 # Test vaults
 OB-Test/
 
+# Zip archives
+*.zip
+
+# Release directory
+release/
+
+# Temporary scripts
+prepare-release.bat
+prepare-release.sh
+sync.bat
+
