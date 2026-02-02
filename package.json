@@ -1,15 +1,24 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-metadata-updater",
 	"version": "0.1.0",
-	"description": "",
+	"description": "Automatically extract keywords from LLM conversation content and generate hierarchical tags with UTC timestamps",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
+	"keywords": [
+		"obsidian",
+		"plugin",
+		"metadata",
+		"tags",
+		"keywords",
+		"LLM",
+		"AI",
+		"timestamp"
+	],
+	"author": "Your Name",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "latest",
