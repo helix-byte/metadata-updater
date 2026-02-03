@@ -6,6 +6,8 @@ export interface ExtractionResult {
 	keywords: string[];
 	tags: string[];
 	summary?: string;
+	title?: string;  // 标题
+	alias?: string[];  // 别名数组
 }
 
 export interface LLMConfig {
@@ -65,13 +67,16 @@ export class OllamaExtractor implements Extractor {
 		// 清理内容，移除 frontmatter
 		const cleanContent = content.replace(/^---\n[\s\S]*?\n---\n/, '');
 
-		const prompt = `你是一个专业的关键词提取专家。请分析以下对话内容，提取核心话题和关键词。
+		const prompt = `你是一个专业的元数据提取专家。请分析以下对话内容，提取核心信息并生成元数据。
 
 要求：
 1. 提取 5-8 个最能反映对话核心的关键词
 2. 关键词应该是具体的、有意义的，而不是泛泛的词汇
-3. 返回 JSON 格式，包含 keywords（关键词数组）和 summary（一句话摘要）
-4. 关键词使用中文，保持原词形式
+3. 生成一句话摘要，概括对话的核心内容
+4. 生成一个简洁的标题（10-30个汉字），准确反映对话主题
+5. 生成 3-5 个别名，用于快速检索和引用（每个别名 5-15 个汉字）
+6. 返回 JSON 格式，包含 keywords（关键词数组）、summary（一句话摘要）、title（标题）和 alias（别名数组）
+7. 所有内容使用中文
 
 对话内容：
 ${cleanContent}
@@ -79,7 +84,9 @@ ${cleanContent}
 输出格式（纯 JSON）：
 {
   "keywords": ["关键词1", "关键词2", "关键词3"],
-  "summary": "一句话概括对话核心"
+  "summary": "一句话概括对话核心",
+  "title": "简洁的标题，10-30个汉字",
+  "alias": ["别名1", "别名2", "别名3"]
 }`;
 
 		try {
@@ -121,7 +128,9 @@ ${cleanContent}
 			return {
 				keywords: result.keywords.slice(0, maxKeywords),
 				tags: tags,
-				summary: result.summary
+				summary: result.summary,
+				title: result.title,
+				alias: result.alias
 			};
 		} catch (error) {
 			console.error('Ollama extraction failed:', error);

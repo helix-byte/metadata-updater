@@ -149,12 +149,17 @@ export default class MetadataUpdaterPlugin extends Plugin {
 
 	async updateNoteMetadata(file: TFile) {
 		try {
+			// 显示开始处理的通知
+			const processingNotice = new Notice(`正在处理: ${file.basename}...`, 0);
+
 			const content = await this.app.vault.read(file);
 			const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter || {};
 
 			let keywords: string[] = [];
 			let tags: string[] = [];
 			let summary: string | undefined;
+			let title: string | undefined;
+			let alias: string[] | undefined;
 
 			// 使用混合提取器
 			if (this.extractorManager && this.settings.llmConfig.enabled) {
@@ -167,6 +172,8 @@ export default class MetadataUpdaterPlugin extends Plugin {
 					keywords = result.keywords;
 					tags = result.tags;
 					summary = result.summary;
+					title = result.title;
+					alias = result.alias;
 				} catch (error) {
 					console.error('Extraction failed:', error);
 					// 降级到规则提取
@@ -199,6 +206,12 @@ export default class MetadataUpdaterPlugin extends Plugin {
 				if (summary) {
 					metadata.summary = summary;
 				}
+				if (title) {
+					metadata.title = title;
+				}
+				if (alias) {
+					metadata.alias = alias;
+				}
 			}
 
 			if (this.settings.timestampEnabled) {
@@ -211,9 +224,13 @@ export default class MetadataUpdaterPlugin extends Plugin {
 			const updatedContent = updateMetadata(content, metadata);
 			await this.app.vault.modify(file, updatedContent);
 
-			new Notice(`Metadata updated for: ${file.basename}`);
+			// 隐藏处理中的通知
+			processingNotice.hide();
+
+			new Notice(`✅ 元数据已更新: ${file.basename}`);
 		} catch (error) {
-			new Notice(`Error updating metadata: ${error}`);
+			console.error('Error updating metadata:', error);
+			new Notice(`❌ 更新元数据失败: ${error}`);
 		}
 	}
 
